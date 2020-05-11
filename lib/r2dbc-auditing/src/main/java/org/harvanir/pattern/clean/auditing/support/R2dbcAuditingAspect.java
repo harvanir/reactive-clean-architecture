@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,7 +31,7 @@ public class R2dbcAuditingAspect {
 
   private List<Class<?>> loadClasses(Class<?>[] basePackageClasses) {
     if (log.isDebugEnabled()) {
-      log.debug("basePackageClasses: {}", Arrays.toString(basePackageClasses));
+      log.debug("Load classes from: {}", Arrays.toString(basePackageClasses));
     }
 
     ArrayList<Class<?>> classes = new ArrayList<>();
@@ -43,7 +45,7 @@ public class R2dbcAuditingAspect {
   private void register(List<Class<?>> classes) {
     auditingHandler = new AuditingHandler();
 
-    classes.forEach(aClass -> auditingHandler.register(aClass));
+    classes.forEach(auditingHandler::register);
   }
 
   @Around(
@@ -51,24 +53,34 @@ public class R2dbcAuditingAspect {
   Object around(ProceedingJoinPoint joinPoint) throws Throwable {
     log.debug("Intercepting: {}", joinPoint.getSignature());
 
-    for (Object o : joinPoint.getArgs()) {
-      if (isSingle(o)) {
-        auditingHandler.auditing(o);
+    for (int i = 0; i < joinPoint.getArgs().length; i++) {
+      Object o = joinPoint.getArgs()[i];
+
+      if (o instanceof Iterable) {
+        iterate(o, auditingHandler::auditing);
+      } else if (o instanceof Flux) {
+        joinPoint.getArgs()[i] = getFlux(o);
+      } else if (o instanceof Mono) {
+        joinPoint.getArgs()[i] = getMono(o);
       } else {
-        iterate(o, o1 -> auditingHandler.auditing(o1));
+        auditingHandler.auditing(o);
       }
     }
 
-    return joinPoint.proceed();
-  }
-
-  private boolean isSingle(Object o) {
-    return !(o instanceof Iterable);
+    return joinPoint.proceed(joinPoint.getArgs());
   }
 
   private void iterate(Object object, Consumer<Object> consumer) {
     for (Object o : (Iterable<?>) object) {
       consumer.accept(o);
     }
+  }
+
+  private Flux<?> getFlux(Object o) {
+    return ((Flux<?>) o).doOnNext(auditingHandler::auditing);
+  }
+
+  private Mono<?> getMono(Object o) {
+    return ((Mono<?>) o).doOnNext(auditingHandler::auditing);
   }
 }
