@@ -16,8 +16,10 @@ spring:
     username: postgres
     password: postgres
     pool:
-      validation-query: SELECT 1;
       enabled: true
+      #      validation-query: SELECT 1; # slow performance when enabled
+      initial-size: 300
+      max-size: 300
   flyway:
     url: jdbc:${app.datasource.url-suffix}
     user: ${spring.r2dbc.username}
@@ -35,6 +37,7 @@ logging:
     org.springframework.data: trace
     org.springframework.transaction: trace
     org.harvanir.pattern.clean.auditing: debug
+    io.r2dbc: trace
 app:
   datasource:
     url-suffix: postgresql://localhost:5432/reactivecleanarchitecture
