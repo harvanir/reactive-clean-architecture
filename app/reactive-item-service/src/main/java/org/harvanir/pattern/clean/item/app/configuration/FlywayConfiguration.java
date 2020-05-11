@@ -15,7 +15,7 @@ public class FlywayConfiguration {
   public Flyway flyway(FlywayProperties flywayProperties) {
     return new Flyway(
         Flyway.configure()
-            .baselineOnMigrate(true)
+            .baselineOnMigrate(flywayProperties.isBaselineOnMigrate())
             .dataSource(
                 flywayProperties.getUrl(),
                 flywayProperties.getUser(),
